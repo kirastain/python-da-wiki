@@ -1,0 +1,83 @@
+import httplib2
+import apiclient.discovery
+from oauth2client.service_account import ServiceAccountCredentials
+import gspread
+import wikia
+
+wikia.set_lang("ru")
+DA = "Dragonage"
+
+CREDENTIALS_FILE = 'dawikihistory-5b3b6058e8d0.json'  # имя файла с закрытым ключом
+
+credentials = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, ['https://www.googleapis.com/auth/spreadsheets',
+                                                                                  'https://www.googleapis.com/auth/drive'])
+httpAuth = credentials.authorize(httplib2.Http())
+service = apiclient.discovery.build('sheets', 'v4', http = httpAuth)
+
+def CreatingSheet():
+    spreadsheet = service.spreadsheets().create(body={
+        'properties': {'title': 'DA-wiki', 'locale': 'ru_RU'},
+        'sheets': [{'properties': {'sheetType': 'GRID',
+                                   'sheetId': 0,
+                                   'title': 'Sheet1',
+                                   'gridProperties': {'rowCount': 40, 'columnCount': 5}}}]
+    }).execute()
+
+    driveService = apiclient.discovery.build('drive', 'v3', http=httpAuth)
+    shareRes = driveService.permissions().create(
+        fileId=spreadsheet['spreadsheetId'],
+        body={'type': 'user', 'role': 'writer', 'emailAddress': 'kirastain@gmail.com'},  # доступ на чтение кому угодно
+        fields='id'
+    ).execute()
+
+def AddingToHistory(history):
+    worksheet.append_row(history, value_input_option='RAW') #для добавления в таблицу
+
+def Checking():
+    SearchRequest = str(input())
+    try:
+        SearchResults = wikia.search(DA, SearchRequest) #проверка на наличие совпадений
+        print(SearchResults)
+    except Exception:
+        print('Not found')
+        history = [SearchRequest, SearchRequest, 'Not found']
+        AddingToHistory(history) #отсутствие результатов добавляется в историю поиска
+        print('Try another')
+        Checking()
+
+    for i in SearchResults:
+        print(wikia.summary(DA, i)) #вывод всех найденных совпадений
+
+    print('Which one to show?') #запрос на вывод конкретной статьи из результатов первого поиска
+    Full = str(input())
+    while Full != '':
+        check = False
+        for i in SearchResults:  # a better searching alg here
+            if i == Full:
+                CurrentPage = wikia.page(DA, Full)
+                CurrentPageUrl = CurrentPage.url
+                print(CurrentPage.title)
+                print(CurrentPage.content)
+                history = [SearchRequest, i, CurrentPageUrl]
+                AddingToHistory(history)
+                check = True
+                break
+        if not check:
+            print('Not in the results')
+        print('Which one to show?')
+        Full = str(input())
+
+
+
+SPREADSHEET_ID = '1q2OHsu-LLN905YCzRzz07aKSW1z__FxAKRx7__Wbi70'
+OMG = gspread.authorize(credentials) #IT HAS A MODULE. A MODULE. OH MY GOD. 6 HOURS. SIX. HOURS.
+spreadsheet = OMG.open_by_key(SPREADSHEET_ID)
+worksheet = spreadsheet.worksheet('Sheet0')
+
+
+SearchRequest = ''
+print("Введите запрос:")
+while SearchRequest != 'Exit':
+    Checking()
+    print('Type \'Exit\' or type a new request')
+    Checking()
